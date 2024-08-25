@@ -41,6 +41,8 @@ None.
 
 ```yaml
 - hosts: servers
+  become: true
+  gather_facts: false
   roles:
     - role: sixteenone.user-create
       vars:
@@ -57,6 +59,33 @@ None.
         user_create_disable_ssh_password: true
 ```
 
+## Example Playbook 2
+You can set the variables in a seperate file:
+
+### main.yml
+
+```yaml
+---
+- name: Scratch run
+  become: true
+  hosts: skysiege
+  gather_facts: false
+  vars_files:
+    - users.yml
+  roles:
+    - sixteenone.user-create
+```
+
+### users.yml
+
+```yaml
+user_create_users:
+  - username: johndoe
+    password: secretpassword
+    ssh_key: /path/to/johndoe_id_rsa.pub
+    admin: true
+    state: present
+```
 
 ## License
 
