@@ -1,0 +1,63 @@
+---
+# tasks file for user_create
+- name: Create a user
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    password: "{{ item.password | password_hash('sha512') }}"
+    update_password: "{{ item.update_password | default('on_create') }}"
+    groups: "{{ item.groups | default(omit) }}"
+    append: "{{ item.append | default(omit) }}"
+    shell: "{{ item.shell | default('/bin/bash') }}"
+    state: "{{ item.state | default(omit) }}"
+    uid: "{{ item.uid | default(omit) }}"
+    system: "{{ item.system | default(omit) }}"
+  loop: "{{ user_create_users }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Create Admin Sudoers file
+  ansible.builtin.copy:
+    content: "{{ item.username }} ALL=(ALL) NOPASSWD:ALL"
+    dest: /etc/sudoers.d/{{ item.username }}
+    owner: root
+    group: root
+    mode: "0440"
+  loop: "{{ user_create_users }}"
+  loop_control:
+    label: "{{ item.username }}"
+  when: item.admin is defined and item.admin == true and item.state is defined and item.state == 'present'
+
+- name: Add ssh key to Servers
+  ansible.posix.authorized_key:
+    user: "{{ item.username }}"
+    state: present
+    key: "{{ lookup('file', item.ssh_key) }}"
+  loop: "{{ user_create_users }}"
+  loop_control:
+    label: "{{ item.username }}"
+  when: item.ssh_key is defined and item.state is defined and item.state != 'absent'
+
+- name: Disable root login via SSH
+  ansible.builtin.lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: ^PermitRootLogin
+    line: PermitRootLogin no
+  notify: Restart sshd
+  when: user_create_disable_ssh_root is defined and user_create_disable_ssh_root == true
+
+- name: Disable Password Login
+  ansible.builtin.lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: ^PasswordAuthentication
+    line: PasswordAuthentication no
+  notify: Restart sshd
+  when: user_create_disable_ssh_password is defined and user_create_disable_ssh_password == true
+
+- name: Remove Admin Sudoers file
+  ansible.builtin.file:
+    path: /etc/sudoers.d/{{ item.username }}
+    state: absent
+  loop: "{{ user_create_users }}"
+  loop_control:
+    label: "{{ item.username }}"
+  when: item.admin is defined and item.admin == true and item.state is defined and item.state == 'absent'
